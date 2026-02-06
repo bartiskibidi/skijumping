@@ -12,49 +12,39 @@ let selectedHill = HILLS.K90;
 
 // ================= MENU SCENE =================
 class MenuScene extends Phaser.Scene {
-  constructor() {
-    super("Menu");
-  }
+  constructor() { super("Menu"); }
 
   create() {
-    this.add.text(480, 80, "SKOKI NARCIARSKIE", {
-      font: "32px monospace",
-      fill: "#000"
-    }).setOrigin(0.5);
+    this.add.text(WIDTH/2, 80, "SKOKI NARCIARSKIE", { font: "32px monospace", fill: "#000" }).setOrigin(0.5);
 
     let y = 180;
-
     Object.values(HILLS).forEach(hill => {
-      const btn = this.add.text(480, y,
-        `${hill.name}\n(K=${hill.k}, HS=${hill.hs})`,
-        {
-          font: "20px monospace",
-          fill: "#000",
-          backgroundColor: "#ffffff",
-          padding: { x: 10, y: 6 }
-        }
-      )
+      const btn = this.add.text(WIDTH/2, y, `${hill.name}\n(K=${hill.k}, HS=${hill.hs})`, {
+        font: "20px monospace", fill: "#000", backgroundColor: "#fff", padding: { x: 10, y: 6 }
+      })
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true })
       .on("pointerdown", () => {
         selectedHill = hill;
         this.scene.start("Game");
       });
-
       y += 90;
     });
 
-    this.add.text(480, 470, "Kliknij skocznię aby zacząć", {
-      font: "16px monospace",
-      fill: "#000"
-    }).setOrigin(0.5);
+    this.add.text(WIDTH/2, 470, "Kliknij skocznię aby zacząć", { font: "16px monospace", fill: "#000" }).setOrigin(0.5);
   }
 }
 
 // ================= GAME SCENE =================
 class GameScene extends Phaser.Scene {
-  constructor() {
-    super("Game");
+  constructor() { super("Game"); }
+
+  preload() {
+    // Sprites i tła (musisz podstawić własne pliki)
+    this.load.spritesheet("jumper", "assets/jumper.png", { frameWidth: 32, frameHeight: 32 });
+    this.load.image("hill", "assets/hill.png");
+    this.load.image("bg_sky", "assets/bg_sky.png");
+    this.load.image("bg_mountains", "assets/bg_mountains.png");
   }
 
   create() {
@@ -65,95 +55,57 @@ class GameScene extends Phaser.Scene {
     this.score = 0;
     this.best = localStorage.getItem("best") || 0;
 
-    // === PIXEL ART ===
-    const g = this.make.graphics({ x: 0, y: 0, add: false });
+    // ===== TŁO =====
+    this.add.image(WIDTH/2, HEIGHT/2, "bg_sky").setScrollFactor(0.2);
+    this.add.image(WIDTH/2, HEIGHT/2, "bg_mountains").setScrollFactor(0.5);
 
-    g.fillStyle(0x000000);
-    g.fillRect(0, 8, 16, 4);
-    g.fillRect(6, 0, 4, 8);
-    g.generateTexture("jumper", 16, 16);
-    g.clear();
+    // ===== ANIMACJE SKOCZKA =====
+    this.anims.create({ key: "run", frames: this.anims.generateFrameNumbers("jumper", { start: 0, end: 3 }), frameRate: 10, repeat: -1 });
+    this.anims.create({ key: "fly", frames: this.anims.generateFrameNumbers("jumper", { start: 4, end: 7 }), frameRate: 10, repeat: -1 });
+    this.anims.create({ key: "land", frames: this.anims.generateFrameNumbers("jumper", { start: 8, end: 11 }), frameRate: 10 });
 
-    g.fillStyle(0xffffff);
-    g.fillRect(0, 0, 1600, 20);
-    g.generateTexture("hill", 1600, 20);
-    g.clear();
+    // ===== SKOCZNIA =====
+    this.hill = this.physics.add.staticImage(800, 360, "hill").setRotation(Phaser.Math.DegToRad(selectedHill.angle));
 
-    // === SKOCZNIA ===
-    this.hill = this.physics.add.staticImage(
-      800,
-      360,
-      "hill"
-    ).setRotation(
-      Phaser.Math.DegToRad(selectedHill.angle)
-    );
-
-    // === SKOCZEK ===
-    this.jumper = this.physics.add.sprite(150, 280, "jumper");
+    // ===== SKOCZEK =====
+    this.jumper = this.physics.add.sprite(150, 280, "jumper").play("run");
     this.jumper.setAngle(selectedHill.angle);
     this.jumper.setCollideWorldBounds(true);
-
     this.physics.add.collider(this.jumper, this.hill, () => this.land());
 
-    // === KAMERA ===
+    // ===== KAMERA =====
     this.cameras.main.startFollow(this.jumper);
     this.cameras.main.setLerp(0.05, 0.05);
 
-    // === UI ===
-    this.ui = this.add.text(10, 10, "", {
-      font: "16px monospace",
-      fill: "#000"
-    }).setScrollFactor(0);
+    // ===== UI =====
+    this.uiText = this.add.text(10, 10, "", { font: "16px monospace", fill: "#fff" }).setScrollFactor(0);
 
-    // === INPUT ===
-    this.input.keyboard.on("keydown-SPACE", () => {
-      if (this.state === "RUN") this.jump();
-    });
-
-    this.input.keyboard.on("keydown-UP", () => {
-      if (this.state === "FLY") this.jumper.angle -= 2;
-    });
-
-    this.input.keyboard.on("keydown-DOWN", () => {
-      if (this.state === "FLY") this.jumper.angle += 2;
-    });
-
-    this.input.on("pointerdown", () => {
-      if (this.state === "RUN") this.jump();
-    });
+    // ===== KONTROLKI =====
+    this.input.keyboard.on("keydown-SPACE", () => { if (this.state === "RUN") this.jump(); });
+    this.input.keyboard.on("keydown-UP", () => { if (this.state === "FLY") this.jumper.angle -= 2; });
+    this.input.keyboard.on("keydown-DOWN", () => { if (this.state === "FLY") this.jumper.angle += 2; });
+    this.input.on("pointerdown", () => { if (this.state === "RUN") this.jump(); });
   }
 
   jump() {
-    const timing = Phaser.Math.Clamp(
-      1 - Math.abs(this.jumper.x - 320) / 120,
-      0.6,
-      1.2
-    );
-
+    const timing = Phaser.Math.Clamp(1 - Math.abs(this.jumper.x - 320) / 120, 0.6, 1.2);
     const speed = 180 + this.gate * 6;
-    this.jumper.setVelocity(
-      speed * timing,
-      -420 * timing
-    );
-
+    this.jumper.setVelocity(speed * timing, -420 * timing);
     this.state = "FLY";
+    this.jumper.play("fly", true);
   }
 
   applyAerodynamics() {
     const rad = Phaser.Math.DegToRad(this.jumper.angle);
-    const lift = Math.cos(rad) * 7;
-    const drag = Math.abs(Math.sin(rad)) * 2;
-
+    const lift = Math.cos(rad) * 10;
+    const drag = Math.abs(Math.sin(rad)) * 3;
     this.jumper.setVelocityY(this.jumper.body.velocity.y - lift);
-    this.jumper.setVelocityX(
-      this.jumper.body.velocity.x - drag + this.wind * 0.03
-    );
+    this.jumper.setVelocityX(this.jumper.body.velocity.x - drag + this.wind * 0.05);
   }
 
   land() {
     if (this.state !== "FLY") return;
     this.state = "STOP";
-
     const angle = Math.abs(this.jumper.angle);
     const telemark = angle < 10;
 
@@ -173,25 +125,25 @@ class GameScene extends Phaser.Scene {
     this.best = Math.max(this.best, this.score);
     localStorage.setItem("best", this.best);
 
+    this.jumper.play("land");
     this.time.timeScale = 0.4;
     setTimeout(() => this.time.timeScale = 1, 400);
-
-    this.time.delayedCall(2000, () => {
-      this.scene.start("Menu");
-    });
+    this.time.delayedCall(2000, () => { this.scene.start("Menu"); });
   }
 
   update() {
     if (this.state === "RUN") {
       this.jumper.setVelocityX(180 + this.gate * 6);
+      this.jumper.play("run", true);
     }
 
     if (this.state === "FLY") {
       this.applyAerodynamics();
       this.distance += this.jumper.body.velocity.x * 0.02;
+      this.jumper.play("fly", true);
     }
 
-    this.ui.setText(
+    this.uiText.setText(
 `SKOCZNIA: ${selectedHill.name}
 STATE: ${this.state}
 GATE: ${this.gate}
