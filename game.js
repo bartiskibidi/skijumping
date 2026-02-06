@@ -154,3 +154,4 @@ new Phaser.Game({
   physics: { default: "arcade", arcade: { gravity: { y: 900 } } },
   scene: [MenuScene, GameScene]
 });
+
